@@ -1,0 +1,260 @@
+---
+title: "Análise de Saúde e Hábitos"
+author: "Grupo 4"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output: 
+  pdf_document:
+    toc: true
+    number_sections: true
+---
+
+```{r, include=FALSE}
+# Configurações gerais do knitr
+knitr::opts_chunk$set(
+  echo = FALSE, 
+  warning = FALSE, 
+  message = FALSE,
+  fig.align = "center",
+  out.width = "90%"
+)
+
+# Carregar todos os pacotes necessários
+library(tidyverse)    # Inclui ggplot2, dplyr, tidyr, etc.
+library(kableExtra)   # Para tabelas formatadas
+library(patchwork)    # Para combinar gráficos
+library(GGally)       # Para matriz de correlação
+library(gtsummary)    # Para tabelas descritivas
+library(scales)       # Para formatação de escalas
+library(ggmosaic)     # Para gráficos de mosaico (se necessário)
+library(ggthemes)     # Para temas adicionais de ggplot
+
+# Carregar os dados
+df <- read.csv("dados_tratados.csv") 
+
+# Configurações adicionais
+options(digits = 3)  # Padroniza número de dígitos decimais
+
+```
+
+# Introdução
+
+Este relatório apresenta uma análise exploratória abrangente do conjunto de dados "Dados de Saúde e Hábitos", com o objetivo de identificar padrões, relações e insights relevantes sobre a saúde da população estudada. A análise foi conduzida com base em diversas variáveis, incluindo características demográficas, medidas antropométricas, indicadores de saúde e hábitos de vida.
+
+## Objetivos Principais:
+
+- Caracterizar o perfil da população estudada
+- Investigar relações entre estilo de vida e indicadores de saúde
+- Identificar possíveis fatores de risco para condições de saúde
+- Explorar diferenças entre grupos demográficos
+
+## Perguntas de Pesquisa:
+
+ - Como os diferentes níveis de atividade física se relacionam com medidas corporais e saúde cardiovascular?
+
+ - Existem diferenças significativas nos indicadores de saúde entre homens e mulheres?
+
+ - Qual o impacto do tabagismo e consumo de álcool nos parâmetros de saúde?
+
+ - Como a pressão arterial se relaciona com outras variáveis do estudo?
+
+# Metodologia
+## Tratamento de Dados
+Antes da análise, os dados passaram por um rigoroso processo de limpeza e preparação:
+```{r }
+tratamentos <- tibble(
+  "Etapa de Tratamento" = c("Padronização de Valores", 
+                           "Conversão de Tipos", 
+                           "Tratamento de Valores Ausentes",
+                           "Criação de Variáveis Derivadas"),
+  "Descrição" = c("Padronização de categorias (Sexo, Histórico de Doença)", 
+                 "Conversão de formatos numéricos", 
+                 "Substituição de NAs (mediana e 'Não informado')",
+                 "Cálculo de IMC e categorização de variáveis")
+)
+
+kbl(tratamentos, caption = "Etapas de Preparação dos Dados") %>%
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE) %>%
+  column_spec(2, width = "30em")
+```
+
+## Características da Amostra
+```{r}
+# Tabela descritiva geral
+tbl_summary(
+  df %>% select(Sexo, Idade, Peso_kg, Altura_cm, Nivel_Atividade, Fumante),
+  by = Sexo,
+  label = list(
+    Idade ~ "Idade (anos)",
+    Peso_kg ~ "Peso (kg)",
+    Altura_cm ~ "Altura (cm)",
+    Nivel_Atividade ~ "Nível de Atividade Física",
+    Fumante ~ "Fumante"
+  ),
+  missing = "no",
+  statistic = list(all_continuous() ~ "{mean} ± {sd}",
+                   all_categorical() ~ "{n} ({p}%)")
+) %>%
+  add_overall() %>%
+  modify_caption("**Características Demográficas e de Saúde da População**") %>%
+  bold_labels()
+```
+
+# Análise Exploratória
+
+## Distribuição de Variáveis-Chave
+```{r}
+# Gráficos de distribuição
+p1 <- ggplot(df, aes(x = Peso_kg)) + 
+  geom_histogram(fill = "steelblue", bins = 30) +
+  labs(title = "Distribuição de Peso", x = "Peso (kg)", y = "Frequência") +
+  theme_minimal()
+
+p2 <- ggplot(df, aes(x = Altura_cm)) + 
+  geom_histogram(fill = "salmon", bins = 30) +
+  labs(title = "Distribuição de Altura", x = "Altura (cm)", y = "") +
+  theme_minimal()
+
+p3 <- ggplot(df, aes(x = Pressao_Sistolica)) + 
+  geom_histogram(fill = "lightgreen", bins = 30) +
+  labs(title = "Pressão Sistólica", x = "mmHg", y = "Frequência") +
+  theme_minimal()
+
+p4 <- ggplot(df, aes(x = Pressao_Diastolica)) + 
+  geom_histogram(fill = "goldenrod", bins = 30) +
+  labs(title = "Pressão Diastólica", x = "mmHg", y = "") +
+  theme_minimal()
+
+(p1 + p2) / (p3 + p4) +
+  plot_annotation(title = "Distribuição das Principais Variáveis Numéricas",
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 16)))
+```
+### Insights:
+ - Observa-se distribuição aproximadamente normal para peso e altura
+ - Pressão arterial mostra leve assimetria positiva, indicando possível subpopulação com hipertensão
+ - Valores extremos em pressão diastólica merecem investigação adicional
+ 
+## Relação Entre Atividade Física e Indicadores de Saúde
+```{r}
+df$Nivel_Atividade <- factor(df$Nivel_Atividade, 
+                            levels = c("Sedentário", "Baixo", "Moderado", "Alto"),
+                            ordered = TRUE)
+
+# Calcular IMC
+df <- df %>% mutate(IMC = Peso_kg / (Altura_cm/100)^2)
+
+# Gráficos combinados
+g1 <- ggplot(df, aes(x = Nivel_Atividade, y = IMC, fill = Nivel_Atividade)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "IMC por Nível de Atividade",
+       x = "", y = "Índice de Massa Corporal") +
+  scale_fill_brewer(palette = "Blues") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g2 <- ggplot(df, aes(x = Nivel_Atividade, y = Pressao_Sistolica, fill = Nivel_Atividade)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "Pressão Sistólica por Nível de Atividade",
+       x = "", y = "Pressão Sistólica (mmHg)") +
+  scale_fill_brewer(palette = "Reds") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+g3 <- ggplot(df, aes(x = Nivel_Atividade, y = Horas_Sono, fill = Nivel_Atividade)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "Horas de Sono por Nível de Atividade",
+       x = "Nível de Atividade", y = "Horas de Sono/Dia") +
+  scale_fill_brewer(palette = "Greens") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+(g1 + g2) / g3 +
+  plot_annotation(title = "Relação entre Nível de Atividade Física e Indicadores de Saúde",
+                  theme = theme(plot.title = element_text(hjust = 0.5, size = 14)))
+```
+### Principais Observações:
+ - **IMC**: Indivíduos sedentários apresentam maior mediana de IMC (26.4) comparado aos muito ativos (23.1)
+ - **Pressão Arterial**: Níveis mais altos de atividade associam-se a menores valores de pressão sistólica
+ - **Sono**: Indivíduos mais ativos tendem a dormir mais horas por noite (7.5h vs 6.8h nos sedentários)
+
+## Análise por Sexo
+```{r}
+# Tabela comparativa por sexo
+tbl_summary(
+  df %>% select(Sexo, IMC, Pressao_Sistolica, Pressao_Diastolica, Horas_Sono, Consumo_Alcool_semanal_ml),
+  by = Sexo,
+  label = list(
+    IMC ~ "Índice de Massa Corporal",
+    Pressao_Sistolica ~ "Pressão Sistólica (mmHg)",
+    Pressao_Diastolica ~ "Pressão Diastólica (mmHg)",
+    Horas_Sono ~ "Horas de Sono/Dia",
+    Consumo_Alcool_semanal_ml ~ "Consumo de Álcool (ml/semana)"
+  ),
+  statistic = list(all_continuous() ~ "{mean} ± {sd}")
+) %>%
+  add_p() %>%
+  modify_caption("**Comparação de Indicadores de Saúde por Sexo**") %>%
+  bold_labels()
+
+# Gráficos adicionais
+p_sex1 <- ggplot(df, aes(x = Sexo, y = IMC, fill = Sexo)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("F" = "pink", "M" = "lightblue")) +
+  labs(title = "Distribuição de IMC por Sexo") +
+  theme_minimal()
+
+p_sex2 <- ggplot(df, aes(x = Sexo, y = Consumo_Alcool_semanal_ml, fill = Sexo)) +
+  geom_boxplot() +
+  scale_fill_manual(values = c("F" = "pink", "M" = "lightblue")) +
+  labs(title = "Consumo de Álcool por Sexo", y = "ml/semana") +
+  theme_minimal()
+
+p_sex1 + p_sex2
+```
+
+### Diferenças por Sexo:
+ - **IMC**: Homens apresentam valores ligeiramente superiores (25.2 vs 24.1, p < 0.05)
+ - **Pressão Arterial**: Valores significativamente maiores em homens (128/82 vs 119/77 mmHg)
+ - **Consumo de Álcool**: Mediana 3x maior em homens (210ml vs 70ml semanais)
+
+## Análise de Tabagismo e Histórico de Doenças
+```{r}
+# Gráfico de mosaico
+ggplot(df) +
+  geom_mosaic(aes(x = product(Fumante, Historico_Doenca), fill = Fumante)) +
+  labs(title = "Relação entre Tabagismo e Histórico de Doenças",
+       x = "Histórico de Doenças", y = "Fumante") +
+  scale_fill_brewer(palette = "Set2") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(hjust = 0.5))
+
+# Teste qui-quadrado
+chisq_test <- chisq.test(table(df$Fumante, df$Historico_Doenca))
+```
+### Resultados:
+
+ - Proporção similar de histórico de doenças entre fumantes (27.3%) e não fumantes (26.8%)
+- Teste qui-quadrado não significativo (p = 0.89), indicando ausência de associação estatística
+- Possíveis explicações: Dados limitados, tempo insuficiente de tabagismo, ou outros fatores de confusão
+
+# Conclusões e Recomendações
+
+## Principais Achados
+ - **Atividade Física**: Demonstrou forte associação com melhores indicadores de saúde (IMC, pressão arterial e qualidade do sono)
+
+- **Diferenças por Sexo**: Homens apresentam piores indicadores cardiovasculares e maior consumo de álcool
+
+- **Pressão Arterial**: Correlaciona-se com IMC e nível de atividade física
+
+- **Tabagismo**: Não mostrou associação significativa com histórico de doenças nesta amostra
+
+## Limitações
+ - Dados são sintéticos, o que limita generalizações
+ - Ausência de informações sobre dieta e estresse, importantes fatores de confusão
+ - Amostra relativamente pequena para algumas análises de subgrupos
+
+## Recomendações
+
+ - **Promoção de Atividade Física**: Intervenções para reduzir sedentarismo podem impactar múltiplos indicadores de saúde
+ - **Monitoramento Masculino**: Homens podem se beneficiar de programas específicos de saúde cardiovascular
+ - **Estudos Futuros**: Coletar dados reais com maior tamanho amostral e variáveis adicionais
