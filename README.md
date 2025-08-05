@@ -40,8 +40,6 @@ Uma investigação inicial foi conduzida para caracterizar a amostra de 1.000 pa
 * **Hábitos:** A maioria dos pacientes é não fumante (69%) e pratica atividade física de nível moderado (40%).
 * **Métricas de Saúde:** Pressão arterial média de 120/80 mmHg, com 7 horas de sono em média.
 
-![Distribuição do Nível de Atividade](https://i.imgur.com/G3i9o4j.png)
-*Exemplo de gráfico gerado na análise descritiva.*
 
 ### 2. Análise Preditiva
 
@@ -56,8 +54,6 @@ O principal desafio foi construir um modelo para prever se um paciente é hipert
     4.  Idade
     5.  Horas de Sono
 
-![Importância das Features](https://i.imgur.com/lO7ZzOq.png)
-*Gráfico mostrando as variáveis mais importantes para o modelo preditivo.*
 
 ### 3. Análise Prescritiva
 
